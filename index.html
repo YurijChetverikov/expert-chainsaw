@@ -2,53 +2,1263 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Telegram Table</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- <script src="https://telegram.org/js/telegram-web-app.js"></script> -->
     <style>
-        body {
-            /* Используем переменные темы Telegram, чтобы цвета подстраивались под тему (темную/светлую) */
-            background-color: var(--tg-theme-bg-color);
-            color: var(--tg-theme-text-color);
+        /* Использование системных цветов Telegram */
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #ffffff);
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f7);
+            --text-color: var(--tg-theme-text-color, #000000);
+            --hint-color: var(--tg-theme-hint-color, #8a8a8e);
+            --button-color: var(--tg-theme-button-color, #0088cc);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --accent-color: var(--tg-theme-accent-text-color, #0088cc);
         }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; 
+            background-color: var(--secondary-bg);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* КАРУСЕЛЬ: Без псевдоэлементов и лишних отступов */
+        .carousel-nav {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            padding: 10px 15px; /* Боковой отступ только для эстетики краев */
+            gap: 8px;
+            flex-shrink: 0;
+            scrollbar-width: none;
+            align-items: center;
+        }
+        
+        .carousel-nav::-webkit-scrollbar { display: none; }
+
+        .carousel-item-btn {
+            /* flex-basis рассчитывается так, чтобы всегда было видно N кнопок */
+            /* 31% (~3 кнопки) на мобилках */
+            flex: 0 0 calc(33.333% - 12px); 
+            scroll-snap-align: center; 
+            scroll-snap-stop: always;
+            white-space: nowrap;
+            font-size: 13px;
+            padding: 10px 5px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .carousel-item-btn:active {
+            transform: scale(0.92);
+            background-color: var(--button-color);
+            color: var(--button-text);
+            border-color: var(--button-color);
+        }
+
+        /* Класс для активной (выбранной) кнопки */
+        .btn-active {
+            background-color: var(--button-color) !important;
+            color: var(--button-text) !important;
+            border-color: var(--button-color) !important;
+        }
+
+        .form-control, .form-select {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        @media (min-width: 576px) {
+            /* 23% (~4 кнопки) на экранах пошире */
+            .carousel-item-btn { flex: 0 0 calc(25% - 10px); } 
+        }
+
+        .dynamic-zone {
+            padding: 10px 15px;
+            min-height: 60px;
+            flex-shrink: 0;
+        }
+
+        .scrollable-list {
+            /* Чтобы flex-grow работал на скролл, нужно явно ограничить высоту */
+            /* Либо используй height: 100%, либо фиксированную высоту */
+            height: calc(100vh - 100px); /* Замени 100px на высоту твоего хедера/футера */
+            
+            display: flex;
+            flex-direction: column;
+            overflow-y: scroll; /* Лучше принудительно включить скролл */
+            padding: 15px; /* Упростим padding для теста */
+            box-sizing: border-box;
+            
+            /* Исправляем Snap */
+            scroll-snap-type: y proximity; /* Mandatory слишком жесткий, proximity мягче при разной высоте карт */
+            -webkit-overflow-scrolling: touch;
+            
+            /* Скрываем скроллбар */
+            scrollbar-width: none;
+        }
+        .scrollable-list::-webkit-scrollbar { display: none; }
+
+        .schedule-card {
+            background: var(--tg-theme-bg-color, #fff);
+            flex-shrink: 0; /* ВАЖНО: запрещаем карточкам сжиматься внутри flex-контейнера */
+            width: 100%;
+            min-height: 80px; /* Задай минимальную высоту, чтобы они не схлопывались */
+            
+            background: var(--tg-theme-bg-color, #fff);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+
+            /* Выравнивание Snap */
+            scroll-snap-align: start; /* Лучше использовать start, чтобы карта всегда прилипала верхом */
+            scroll-snap-stop: normal;
+        }
+        /* Класс для активной (выбранной) карты */
+        .card-active {
+            /* background-color: var(--button-color) !important;
+            color: var(--button-text) !important; */
+            border-color: var(--button-color) !important;
+            border: solid;
+            /* border-width: 5px; */
+        }
+        .schedule-card:last-child {
+            scroll-snap-align: start end;
+            margin-bottom: 20px;
+        }
+        .card-time { color: var(--hint-color); font-size: 13px; font-weight: 500; }
+        .card-type { float: right; color: var(--text-color); font-size: 13px; opacity: 0.8; }
+        .card-title { font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+        .card-footer-info { color: var(--hint-color); font-size: 14px; margin-top: 4px; }
+
+
+        
+
+        /* Основной контейнер шторки */
+        .bottom-sheet {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 80vh;
+            background: var(--tg-theme-bg-color, #fff);
+            display: flex;
+            flex-direction: column; /* Вертикальный стек */
+            border-radius: 20px 20px 0 0;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Скролл-зона */
+        .sheet-body {
+            flex-grow: 1; /* Занимает всё свободное место */
+            overflow-y: auto;
+            background: var(--tg-theme-secondary-bg-color, #f8f9fa);
+        }
+
+        /* Фиксированные зоны */
+        .sheet-header, .sheet-footer {
+            padding: 15px;
+            background: var(--tg-theme-bg-color, #fff);
+            flex-shrink: 0; /* Не сжимаются */
+        }
+
+        /* .sheet-header { border-bottom: 1px solid #dee2e6; } */
+        .sheet-footer { border-top: 1px solid #dee2e6; }
+
+        /* Кнопка в стиле Telegram */
+        .btn-tg-main {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .btn-tg-main:disabled {
+            opacity: 0.5;
+            filter: grayscale(0.5);
+        }
+
+        /* Стиль выбранного элемента (Bootstrap active) */
+        .list-group-item.selected {
+            background-color: var(--tg-theme-button-color, #007bff) !important;
+            color: var(--tg-theme-button-text-color, #fff) !important;
+        }
+
+        .sheet-header {
+            padding: 4%;
+        }
+
+        .bottom-sheet.active {
+            transform: translateY(0); /* Показываем */
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 999;
+        }
+
+
+         /* ПЛАШКА С ОШИБКОЙ */
+
+
+        .error-sheet {
+            position: fixed;
+            top: -20%; /* Прячем за верхним краем */
+            left: 5%;
+            right: 5%;
+            height: auto;
+            min-height: 10%;
+            max-height: 15%;
+            background-color: #dc3545; /* Bootstrap Red */
+            color: white;
+            border-radius: 0 0 15px 15px; /* Закругляем только низ */
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            pointer-events: none; /* Чтобы не мешал кликам, когда скрыт */
+        }
+
+        /* Состояние показа */
+        .error-sheet.show {
+            top: 0;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Состояние ухода (вниз + прозрачность) */
+        .error-sheet.hide-out {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        .error-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .error-content {
+            flex-grow: 1;
+        }
+
+        .error-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .error-text {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* ОВЕРЛЕЙ ЗАГРУЗКИ */
+
+        .loader-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--tg-theme-bg-color, rgba(255, 255, 255, 0.8));
+            backdrop-filter: blur(5px); /* Размытие фона в стиле iOS/Android */
+            display: none; /* Скрыт по умолчанию */
+            justify-content: center;
+            align-items: center;
+            z-index: 3000; /* Выше всех остальных элементов */
+            transition: opacity 0.3s ease;
+        }
+
+        .loader-content {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Красивый спиннер в стиле Bootstrap/Material */
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--tg-theme-secondary-bg-color, #f3f3f3);
+            border-top: 5px solid var(--tg-theme-button-color, #2481cc);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        .loader-text {
+            color: var(--tg-theme-text-color, #222);
+            font-weight: 500;
+            font-family: sans-serif;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+        /* ДИАЛОГОВОЕ ОКНО */
+
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px); /* Размытие заднего плана */
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2500;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-card {
+            width: 85%;
+            max-width: 400px;
+            background: var(--tg-theme-bg-color, #fff);
+            border-radius: 20px;
+            padding: 4%;
+            transform: scale(0.8); /* Начальный размер для анимации */
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        /* Анимация при открытии */
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .modal-icon {
+            font-size: 24px;
+            margin-right: 12px;
+        }
+
+        .modal-body {
+            color: var(--tg-theme-text-color, #222);
+            line-height: 1.5;
+            /* margin-bottom: 20px; */
+            font-size: 0.95rem;
+        }
+
+        .modal-footer .btn-tg-main {
+            /* Кнопка в стиле Telegram, которую мы делали ранее */
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .info-subtitle {
+            display: block;
+            /* font-weight: bold; */
+            font-size: 1.1rem;
+            color: var(--tg-theme-hint-color, #777); /* Чуть приглушенный цвет для подзаголовка */
+            margin-bottom: 2px; /* Почти нет отступа до текста */
+        }
+
+        .info-text {
+            display: block;
+            font-size: 1.05rem;
+            color: var(--tg-theme-text-color, #000);
+            line-height: 1.3;
+        }
+
+        .iframe-wrapper {
+            padding: 0 !important; /* Убираем падинги, чтобы iframe занял всё место */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
     </style>
 </head>
 <body>
-    <div class="container mt-3">
-        <h4 class="mb-3">Предзагруженная таблица</h4>
-        
-        <div class="table-responsive">
-            <table class="table table-striped border">
-                <thead class="table-dark">
-                    <tr>
-                        <th>ID</th>
-                        <th>Товар</th>
-                        <th>Цена</th>
-                    </tr>
-                </thead>
-                <tbody id="table-body">
-                    <tr><td>1</td><td>Батарейки ХУЙ!!!А</td><td>150₽</td></tr>
-                    <tr><td>2</td><td>Кабель Type-C</td><td>450₽</td></tr>
-                    <tr><td>3</td><td>Разъем micro-USB</td><td>30₽</td></tr>
-                </tbody>
-            </table>
-        </div>
 
-        <button class="btn btn-primary w-100 mt-3" id="main-btn">Оформить заказ</button>
+<div class="app-container">
+    <div class="carousel-nav" id="main-nav">       
+        <button class="btn btn-light border carousel-item-btn" id="donate-btn">Поддерржать</button>
+        <button class="btn btn-light border carousel-item-btn" id="teachers-btn">Преподаватели</button>
+        <button disabled class="btn btn-light border carousel-item-btn" id="faculty-btn">Факультет</button>
+        <button disabled class="btn btn-light border carousel-item-btn" id="group-btn">Группа</button>
+        <button disabled class="btn btn-light border carousel-item-btn" id="department-btn">Кафедра</button>
     </div>
 
-    <script>
-        // Инициализация Telegram Web App
-        const tg = window.Telegram.WebApp;
-        tg.expand(); // Развернуть на весь экран
+    <!-- <div id="dynamic-zone" class="dynamic-zone"></div> -->
 
-        // Пример взаимодействия
-        document.getElementById('main-btn').addEventListener('click', () => {
-            tg.showAlert("Данные отправлены!");
-            // Можно закрыть приложение или отправить данные боту
-            // tg.close(); 
+    <div class="scrollable-list" id="schedule-list">
+    </div>
+</div>
+
+<div id="bottomSheetOverlay" class="overlay"></div>
+
+<div id="bottomSheet" class="bottom-sheet">
+    <div class="sheet-header">
+        <div class="drag-handle"></div>
+        <h5>Выберите преподавателя</h5>
+        <div class="search-wrapper">
+            <input type="text" id="teacherSearch" class="form-control" placeholder="Поиск (от 3-х символов)...">
+        </div>
+    </div>
+
+    <div id="sheetList" class="sheet-body list-group list-group-flush">
+        <div class="p-3 text-center text-muted">Ничего не найдено</div>
+    </div>
+
+    <div class="sheet-footer">
+        <button id="confirmBtn" class="btn btn-tg-main" disabled>Подтвердить выбор</button>
+    </div>
+</div>
+
+<div id="errorNotify" class="error-sheet">
+</div>
+
+<div id="loaderOverlay" class="loader-overlay">
+    <div class="loader-content">
+        <div class="spinner"></div>
+        <span id="loaderText" class="loader-text">Загрузка...</span>
+    </div>
+</div>
+
+<div id="infoOverlay" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h5 id="infoTitle">Информация</h5>
+        </div>
+        <div class="modal-body">
+        </div>
+        <!-- <div class="modal-footer">
+            <button class="btn-tg-main" onclick="closeInfo()">Понятно</button>
+        </div> -->
+    </div>
+</div>
+
+<script>
+
+    //C# like Event class implementation
+
+
+    function Event(sender) {
+        this._sender = sender;
+        this._listeners = [];
+    }
+
+    Event.prototype = {
+        attach: function (listener) {
+            this._listeners.push(listener);
+        },
+        notify: function (args) {
+            for (var i = 0; i < this._listeners.length; i++) {
+                this._listeners[i](this._sender, args);
+            }
+        }
+    };
+
+
+    // GZIP compressed Base64 encoded decompressor implementation
+
+    const DecompressFromBase64String = base64string => {
+        const bytes = Uint8Array.from(atob(base64string), c => c.charCodeAt(0));
+        const cs = new DecompressionStream('gzip');
+        const writer = cs.writable.getWriter();
+        writer.write(bytes);
+        writer.close();
+        return new Response(cs.readable).arrayBuffer().then(function (arrayBuffer) {
+            return new TextDecoder().decode(arrayBuffer);
         });
-    </script>
+    }
+
+</script>
+
+<script>
+
+    class ListItem{
+        ID = 0;
+        OnClickEvent = new Event(this);
+        OnSelectedStateChangedEvent = new Event(this);
+        IsVisible = true;
+
+        _myElem = null;
+
+        constructor(id) {
+            this.ID = id;
+        }
+
+        Render(parentElem){
+            this.SetVisible(this.IsVisible);
+        }
+
+        SetVisible(isVisible){
+            if (this._myElem == null)
+                return;
+
+            this.IsVisible = isVisible;
+            if (this.IsVisible == false){
+                this._myElem.style.display = "none";
+            }else{
+                this._myElem.style.display = "";
+            }
+        }
+    }
+
+    class PickableListItem extends ListItem{
+        Text = null;
+        Selected = false;
+
+        _myElem = null;
+
+        constructor(id, text) {
+            super(id);
+            this.Text = text;
+        }
+
+        Render(parentElem){
+            this._myElem = document.createElement('div');
+            this._myElem.classList.add("schedule-card");
+            this._myElem.addEventListener("click", (e) => this.#onClickEvent(e));
+            
+            let textSpan = document.createElement('span');
+            textSpan.classList.add("card-title");
+            textSpan.textContent = this.Text;
+            this._myElem.append(textSpan);
+
+            parentElem.append(this._myElem);
+
+            super.Render(parentElem);
+        }
+
+        // Private methods
+
+        #onClickEvent(){
+            this.OnClickEvent.notify();
+            this.Select();
+        }
+
+        // Public methods
+
+        Select(){
+            this._myElem.classList.add("card-active");
+            if (!this.Selected){
+                this.Selected = true;
+                this.OnSelectedStateChangedEvent.notify(true);
+            }
+        }
+
+        Deselect(){
+            this._myElem.classList.remove("card-active");
+            if (this.Selected){
+                this.Selected = false;
+                this.OnSelectedStateChangedEvent.notify(false);
+            } 
+        }
+    }
+
+    class SubjectListItem extends ListItem{
+        Name = null;
+        FullName = null;
+        Type = null;
+        Auditorium = null;
+        WeekdayObject = null;
+        Time = null;
+        OddGroups = [];
+        EvenGroups = [];
+        CurrentWeek = null;
+        
+
+        _myElem = null;
+
+        constructor(id, name, fullName, type, auditorium, weekdayObject, time, oddGroups, evenGroups, currentWeek) {
+            super(id);
+            this.Name = name;
+            this.FullName = fullName;
+            this.Type = type;
+            this.Auditorium = auditorium;
+            this.WeekdayObject = weekdayObject;
+            this.Time = time;
+            this.OddGroups = oddGroups;
+            this.EvenGroups = evenGroups;
+            this.CurrentWeek = currentWeek;
+        }
+
+        Select(){
+
+        }
+
+        Render(parentElem){
+            this._myElem = document.createElement('div');
+            this._myElem.classList.add("schedule-card");
+
+            let textSpan = document.createElement('div');
+            textSpan.classList.add("card-title");
+            textSpan.textContent = this.Name + "\t" + this.Type;
+            this._myElem.append(textSpan);
+
+            let timeSpan = document.createElement('div');
+            timeSpan.classList.add("card-time");
+            timeSpan.textContent = this.WeekdayObject[0] + ", " + this.Time;
+            this._myElem.append(timeSpan);
+
+            let auditoriumSpan = document.createElement('div');
+            auditoriumSpan.classList.add("card-footer-info");
+            auditoriumSpan.textContent = "Аудитория: " + this.Auditorium;
+            this._myElem.append(auditoriumSpan);
+
+            if (this.CurrentWeek == "EVEN" || this.CurrentWeek == "ODD"){
+                let groupsTitleSpan = document.createElement('div');
+                groupsTitleSpan.classList.add("card-footer-info");
+
+
+                let groupsSpan = document.createElement('div');
+                groupsSpan.classList.add("card-footer-info");
+                if (this.CurrentWeek == "EVEN"){
+                    groupsSpan.textContent = this.EvenGroups.join(", ");
+                    groupsTitleSpan.textContent = "Группы в ЧЁТНУЮ неделю:";
+                }else if (this.CurrentWeek == "ODD"){
+                    groupsSpan.textContent = this.OddGroups.join(", ");
+                    groupsTitleSpan.textContent = "Группы в НЕЧЁТНУЮ неделю:";
+                }
+                this._myElem.append(groupsTitleSpan);
+                this._myElem.append(groupsSpan);
+            }
+            
+
+            // let auditoriumSpan = document.createElement('div');
+            // textSpan.classList.add("card-footer-info");
+            // textSpan.textContent = this.Auditorium;
+            // this._myElem.append(auditoriumSpan);
+
+            parentElem.append(this._myElem);
+
+            this._myElem.addEventListener("click", (e) => this.OnClickEvent.notify());
+
+            super.Render(parentElem);
+        }
+    }
+
+    class ItemsList{
+        _items = new Map();
+
+        #_rootElem = null;
+        #_multiselectAllowed = false;
+
+        SelectedItem = null;
+        OnSelectedEvent = new Event(this);
+
+        constructor(rootElem, allowMultiselect){
+            this.#_rootElem = rootElem;
+            this.#_multiselectAllowed = allowMultiselect;
+        }
+
+        get Items() {
+            return this._items;
+        }
+
+        set Items(value) {
+            return;
+        }
+
+        Clear(){
+            this.SelectedItem = null;
+            this.#_rootElem.replaceChildren();
+            this._items = new Map();
+        }
+
+        TryAddItem(item){
+            if (this._items.has(item.ID)){
+                return false;
+            }
+            this._items.set(item.ID, item);
+            // item.OnClickEvent.attach((sender,args) => {
+            //     this.#onItemSelected(sender);
+            // });
+            this.#updateUI();
+        }
+
+        // SetVisible(item, isVisible){
+        //     if (this._items.has(item.ID)){
+
+        //     }
+        // }
+
+        #onItemSelected(item){
+            if (this.SelectedItem == item){
+                return;
+            }
+
+            if (this.SelectedItem != null && this.#_multiselectAllowed == false){
+                // Нужно очистить выделение у предыдущего выделенного элемента
+                this.SelectedItem.Deselect();
+            }
+
+            this.SelectedItem = item;
+            this.SelectedItem.Select();
+
+            this.OnSelectedEvent.notify(item);
+        }
+
+        #updateUI(){
+            this.#_rootElem.replaceChildren();
+
+            for (let item of this._items.values()) {
+                item.Render(this.#_rootElem);
+            }
+        }
+
+    }
+
+</script>
+
+<script>
+    function weekdayNum2Str(weekdayNum){
+        const normalized = Number(weekdayNum);
+
+        switch(normalized){
+            case 1:
+                return ["Понедельник", "Пн."];
+            case 2:
+                return ["Вторник", "Вт."];
+            case 3:
+                return ["Среда", "Ср."];
+            case 4:
+                return ["Четверг", "Чт."];
+            case 5:
+                return ["Пятница", "Пт."];
+            case 6:
+                return ["Суббота", "Сб."];
+            case 7:
+                return ["Воскресенье", "Вс."];
+            default:
+                return null;
+        }
+    }
+
+    function slot2PairTime(slot){
+        const normalized = Number(slot);
+
+        switch(normalized){
+            case 0:
+                return "8:00";
+            case 1:
+                return "9:50";
+            case 2:
+                return "11:40";
+            case 3:
+                return "13:40";
+            case 4:
+                return "15:30";
+            case 5:
+                return "17:20";
+            default:
+                return null;
+        }
+    }
+    
+    let errorTimer = null;
+
+    function showError(title, message) {
+        const notify = document.getElementById('errorNotify');
+        
+        let timeoutToAppear = 0;
+
+        if (errorTimer != null){
+            // На экране не пусто
+            timeoutToAppear = 150;
+        }
+
+        // 1. Очистка предыдущего состояния
+        clearTimeout(errorTimer);
+        hideError(true);
+        notify.classList.remove('show', 'hide-out');
+        
+        setTimeout(() => {
+            // 2. Обновляем контент (иконка крестика через символ или SVG)
+            notify.innerHTML = `
+                <div class="error-icon">✕</div>
+                <div class="error-content">
+                    <span class="error-title">${title}</span>
+                    <span class="error-text">${message}</span>
+                </div>
+            `;
+
+            // 3. Показываем (небольшая задержка нужна, если мы только что удалили класс 'show')
+            requestAnimationFrame(() => {
+                notify.classList.add('show');
+                notify.style.top = '0%'; 
+            });
+
+
+
+            // 4. Запускаем таймер скрытия (через 4 секунды)
+            errorTimer = setTimeout(() => {
+                hideError(false);
+                errorTimer = null;
+            }, 2500);
+        }, timeoutToAppear);
+
+        
+    }
+
+    function hideError(forceHide) {
+        const notify = document.getElementById('errorNotify');
+        
+        // Добавляем класс ухода (вниз и прозрачность)
+        notify.classList.add('hide-out');
+        notify.classList.remove('show');
+
+        // Полностью убираем в исходное состояние после окончания анимации
+        if (forceHide){
+            notify.classList.remove('hide-out');
+            notify.style.top = '-20%'; 
+        }else{
+            setTimeout(() => {
+                notify.classList.remove('hide-out');
+                notify.style.top = '-20%'; 
+            }, 400);
+        }
+        
+    }
+
+    /**
+     * Показывает загрузчик с произвольным текстом
+     * @param {string} text - Текст сообщения (необязательно)
+     */
+    function showLoader(text = "Загрузка...") {
+        const loader = document.getElementById('loaderOverlay');
+        const textElem = document.getElementById('loaderText');
+        
+        textElem.textContent = text;
+        loader.style.display = 'flex';
+        
+        // Плавное появление через opacity
+        setTimeout(() => {
+            loader.style.opacity = '1';
+        }, 10);
+    }
+
+    /**
+     * Скрывает загрузчик
+     */
+    function hideLoader() {
+        const loader = document.getElementById('loaderOverlay');
+        loader.style.opacity = '0';
+        
+        // Ждем окончания анимации, прежде чем убрать из DOM потока
+        setTimeout(() => {
+            loader.style.display = 'none';
+        }, 300);
+    }
+
+    const infoElem = document.getElementById('infoOverlay');
+    const infoBody = infoElem.querySelector(`div[class='modal-body']`);
+    const infoHeader = infoElem.querySelector(`div[class='modal-header']`);
+
+    function showInfo(title, innerHTML) {
+        if (title == null){
+            infoHeader.style.display = "none";
+        }else{
+            infoHeader.style.display = "flex";
+            document.getElementById('infoTitle').textContent = title;
+        }
+        
+        infoBody.innerHTML = innerHTML;
+
+        infoElem.style.display = 'flex';
+        // Задержка для запуска анимации
+        setTimeout(() => infoElem.classList.add('active'), 10);
+    }
+
+    function closeInfo() {
+        infoElem.classList.remove('active');
+        setTimeout(() => {infoElem.style.display = 'none'; infoBody.innerHTML = "";}, 300);
+    }
+
+    // Закрытие при клике по Overlay (но не по самой карточке)
+    infoElem.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeInfo();
+        }
+    });
+
+</script>
+
+
+<script type="module">
+    // const tg = window.Telegram.WebApp;
+    // tg.expand();
+
+    // document.documentElement.style.setProperty('--tg-viewport-height', tg.viewportHeight + 'px');
+
+    const dynamicArea = document.getElementById('dynamic-zone');
+    const scheduleList = document.getElementById('schedule-list');
+
+    const teachersButton = document.getElementById("teachers-btn");
+
+    const bottomSheet = document.getElementById("bottomSheet");
+
+    let dynamicAreaInputField = null;
+
+    let teachersList = new Map();
+    let sortedTeachersIDsList = [];
+
+    // none, teachersListOpened, teacherScheduleOpened
+    let currentWorkingMode = "none";
+    let mainList = new ItemsList(scheduleList, false);
+
+    let _cachedTeachersSchedule = new Map();
+
+    let _selectedTeacherID = 0;
+    
+    let _isBottomSheetOpened = false;
+
+    let _currentDateState = null;
+
+    mainList.OnSelectedEvent.attach(async (sender,args) => {
+        await renderTeacherSchedule(sender.SelectedItem.ID);
+    });
+    
+    teachersButton.addEventListener("click", () => {
+        openSheet();
+    });
+
+    teachersList = await getTeachersList();
+    _currentDateState = await getCurrent();
+
+    async function renderTeacherSchedule(teacherId){
+        const scheduleJson = await getTeacherSchedule(teacherId);
+
+        mainList.Clear();
+        let i = 1;
+        scheduleJson.forEach((weekday, index) => {
+            if (weekday.weekday == "502"){
+                // Расписания нет. 
+                showError("Ошибка на стороне ЛЭТИ", "Искомый преподаватель не зарегистрирован в системе расписания");
+                console.warn("Нет расписания. 502");
+                return;
+            }
+            const currentWeekdayNameObject = weekdayNum2Str(weekday.weekday);
+
+
+
+            weekday.subjects.forEach((subject, index) => {
+                const slotString = slot2PairTime(subject.slot);
+                let m = new SubjectListItem(i, subject.name, subject.fullName, subject.type, subject.auditorium, currentWeekdayNameObject, slotString, subject.oddWeekGroups, subject.evenWeekGroups, (_currentDateState.week == 2 ? "EVEN" : (_currentDateState.week == 1 ? "ODD" : null)));
+                
+                m.OnClickEvent.attach((sender,args) => {
+                    showInfo(null, `<span class="info-subtitle">${sender.FullName}</span>
+                        <span class="info-subtitle">День недели: ${sender.WeekdayObject[0]}</span>
+                        <span class="info-subtitle">Время: ${sender.Time}</span>
+                        <span class="info-subtitle">Аудитория: ${sender.Auditorium}</span>
+                        <span class="info-subtitle">Группы на чётной неделе:</span>
+                        <span class="info-text">${sender.OddGroups}</span>
+                        <span class="info-subtitle">Группы на нечётной неделе:</span>
+                        <span class="info-text">${sender.EvenGroups}</span>`);
+                });
+
+
+
+                mainList.TryAddItem(m);
+                i++
+            });
+        });   
+
+        console.log(scheduleJson);
+    }
+
+    async function getTeachersList() {
+        showLoader();
+
+        try{
+            const response = await fetch('http://localhost:8080/api/getTeachersList');
+            
+            if (!response.ok) {
+                if (response.status == 502){
+                    showError("Ошибка на стороне ЛЭТИ", "Сервер не отвечает");
+
+                    hideLoader();
+
+                    return null;
+                }else{
+                    showError("Ошибка", `Error while fetching teachers list: ${response.status}`);
+                    throw new Error(`Error while fetching teachers list: ${response.status}`);
+                }   
+            }
+
+            const data = JSON.parse(await DecompressFromBase64String(await response.text()));
+
+            let output = new Map();
+
+            data.forEach(t => {
+                output.set(t.id, t);
+            });
+
+            hideLoader();
+
+            return output;
+        }catch(ex){
+            showError("Ошибка", `Нет соединения с сервером`);
+        }
+
+        
+
+        hideLoader();
+
+        return null;
+    }
+
+    async function getTeacherSchedule(teacherId){
+        if (_cachedTeachersSchedule.has(teacherId)){
+            if ((_cachedTeachersSchedule.get(teacherId)[0].getTime() + 3 * 3600000) >= new Date().getTime()){
+                // Если прошло меньше 3 часов с момента предыдущего обновления => не обновляем
+                return _cachedTeachersSchedule.get(teacherId)[1];
+            }
+        }
+
+        showLoader();
+    
+        try{
+            const response = await fetch(`http://localhost:8080/api/getteacherscchedule?id=${teacherId}`);
+        
+            if (!response.ok) {
+                if (response.status == 502){
+                    console.warn(`Can't fetch teacher's schedule with id ${teacherId} because of server bad response`);
+                    _cachedTeachersSchedule.set(teacherId, [new Date(), JSON.parse(`[{"weekday": "502"}]`)]);
+                    hideLoader();
+                    return JSON.parse(`[{"weekday": "502"}]`);
+                }else{
+                    throw new Error(`Error while fetching teacher schedule: ${response.status}`);
+                    showError("Ошибка", `Error while fetching teachers list: ${response.status}`);
+                }
+            }
+
+            const data = JSON.parse(await DecompressFromBase64String(await response.text()));
+
+            _cachedTeachersSchedule.set(teacherId, [new Date(), data]);
+
+            hideLoader();
+
+            return data;
+
+        }catch(ex){
+            showError("Ошибка", `Нет соединения с сервером`);
+        }
+
+
+        hideLoader();
+
+        return null;
+    }
+
+    async function getCurrent() {
+        showLoader();
+
+        try{
+            const response = await fetch(`http://localhost:8080/api/getcurrent`);
+
+            if (!response.ok) {
+                if (response.status == 502){
+                    showError("Ошибка на стороне ЛЭТИ", "Сервер не отвечает");
+
+                    hideLoader();
+
+                    return null;
+                }else{
+                    showError("Ошибка", `Error while fetching current: ${response.status}`);
+                    throw new Error(`Error while fetching current: ${response.status}`);
+                }
+            }
+
+            hideLoader();
+
+            return response.json();
+        }catch(ex){
+            showError("Ошибка", `Нет соединения с сервером`);
+        }
+
+
+        hideLoader();
+
+        return null;
+    }
+
+
+    const searchInput = document.getElementById('teacherSearch');
+    const sheetList = document.getElementById('sheetList');
+    const sheetOverlay = document.getElementById('bottomSheetOverlay');
+    const sheetConfirmBtn = document.getElementById('confirmBtn');
+
+    // Функция задержки, чтобы не искать на каждой букве
+    function debounce(func, timeout = 300) {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
+    }
+
+    const handleSearch = debounce((e) => {
+
+        const query = e.target.value.toLowerCase().trim();
+        if (query.length >= 3){
+            // Выполняем поиск
+            sortedTeachersIDsList = [];
+
+            for (let t of teachersList.values()) {
+                if ((t.name + " " + t.surname + " " + t.midname).toLowerCase().includes(query)){
+                    sortedTeachersIDsList.push(t.id);
+                }
+            }
+            
+            // foundedTeachersCount.textContent = `Найдено: ${sortedTeachersIDsList.length}`;
+            // displayedTeachersCount.textContent = `Отображено: ${Math.min(50, sortedTeachersIDsList.length)}`;
+            renderTeachersListToBottomSheet(sortedTeachersIDsList, 50);
+        }else{
+            renderTeachersListToBottomSheet([], 1900);
+            // foundedTeachersCount.textContent = "Найдено: 0";
+            // displayedTeachersCount.textContent = "Отображено: 0";
+        }
+    });
+
+    function renderTeachersListToBottomSheet(teachersIDs, limit) {
+        sheetList.innerHTML = ''; // Очищаем старое
+
+        // Нужно, чтобы если мы печатали новые буквы, то выделение не спадало
+        let hasSelectedItemInSight = false;
+        if (teachersIDs.length === 0) {
+            sheetList.innerHTML = '<div class="p-3 text-center text-muted">Ничего не найдено</div>';
+        }else{
+            const fragment = document.createDocumentFragment();
+
+            let i = 0;
+            teachersIDs.forEach(id => {
+                if (i == limit){
+                    return;
+                }
+                i++;
+                let foundedTeacher = teachersList.get(id);
+
+                const btn = document.createElement('button');
+                // Используем классы Bootstrap для красоты
+                btn.className = 'list-group-item list-group-item-action border-0 py-3';
+                btn.textContent = (foundedTeacher.surname + " " + foundedTeacher.name + " " + foundedTeacher.midname);
+                btn.style.setProperty("transition", "all 1s ease-out;");
+
+                // Логика клика
+                btn.onclick = () => {
+                    // Убираем подсветку у предыдущего
+                    const active = sheetList.querySelector('.selected');
+                    if (active) active.classList.remove('selected');
+                    
+                    // Подсвечиваем текущий
+                    btn.classList.add('selected');
+                    
+                    // Сохраняем данные и активируем кнопку
+                    _selectedTeacherID = id;
+                    sheetConfirmBtn.disabled = false;
+                };
+
+                
+                if (_selectedTeacherID == id){
+                    hasSelectedItemInSight = true;
+                    btn.click();
+                }
+                
+                fragment.appendChild(btn);       
+            });
+
+            sheetList.appendChild(fragment);
+        }
+
+        if (hasSelectedItemInSight == false){
+            _selectedTeacherID = 0;
+            const active = sheetList.querySelector('.selected');
+            if (active) active.classList.remove('selected');
+
+            sheetConfirmBtn.disabled = true;
+        }        
+    }
+
+    searchInput.addEventListener('input', handleSearch);
+    sheetOverlay.addEventListener('click', () => {
+        if (_isBottomSheetOpened){
+            closeSheet();
+        }
+    });
+
+    function openSheet() {
+        _isBottomSheetOpened = true;
+        bottomSheet.classList.add('active');
+        sheetOverlay.style.display = 'block';
+    }
+
+    function closeSheet() {
+        _isBottomSheetOpened = false;
+        bottomSheet.classList.remove('active');
+        sheetOverlay.style.display = 'none';
+    }
+
+    // Обработка финального подтверждения
+    sheetConfirmBtn.onclick = () => {
+        if (_selectedTeacherID) {
+            closeSheet(); // Закрываем шторку
+            
+            renderTeacherSchedule(_selectedTeacherID);
+        }
+    };
+
+
+
+
+
+    // Add dotane button
+
+    const donateButton = document.getElementById("donate-btn");
+    donateButton.addEventListener("click", () =>{
+        showInfo("Нравится сервис? Поддержи проект!", `
+        <span>Любая сумма поддержит разработчика❤️❤️❤️</span>
+        <div class="iframe-wrapper">
+            <iframe src="https://yoomoney.ru/quickpay/fundraise/button?billNumber=1GUGROKGDFG.260404&" width="216px" height="32" frameborder="0" allowtransparency="true" scrolling="no"></iframe>​
+        </div>`);
+    });
+
+
+</script>
+
 </body>
 </html>
